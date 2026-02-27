@@ -206,13 +206,15 @@
                                 </select>
                             </div>
                             <div class="sim-field">
-                                <label>🔊 Audio ML Result</label>
-                                <select id="sim-audio">
-                                    <option value="not_check" selected>Not Check</option>
-                                    <option value="none">No Pests Detected</option>
-                                    <option value="locusts">Locust Frequency (Warning)</option>
-                                    <option value="aphids">Aphid Chewing Sounds (Alert)</option>
-                                </select>
+                                <label>🔊 Audio ML (Live Analysis)</label>
+                                <div style="display: flex; gap: 8px; margin-top: 4px;">
+                                    <input type="number" id="audio-freq" placeholder="Freq (Hz)"
+                                        style="width: 50%; padding: 0.6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text);" />
+                                    <input type="number" step="0.1" id="audio-amp" placeholder="Amp (mV)"
+                                        style="width: 50%; padding: 0.6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text);" />
+                                </div>
+                                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 4px;">Leave blank to
+                                    skip</p>
                             </div>
                         </div>
 

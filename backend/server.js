@@ -40,7 +40,7 @@ const COLLECTION = 'diagnoses';
 // ─────────────────────────────────────────────
 app.post('/api/diagnose', async (req, res) => {
     try {
-        const { crop, lat, lon, imageResult, audioResult } = req.body;
+        const { crop, lat, lon, imageResult, audioFreq, audioAmp } = req.body;
 
         // --- Member 1: Climate module ---
         const weatherData = await fetchWeatherData(lat, lon);
@@ -50,12 +50,57 @@ app.post('/api/diagnose', async (req, res) => {
         // --- Merge all three modules ---
         // Member 2 (Image) and Member 3 (Audio) pass their results in the body.
         // Fall back to simulated data if they aren't available yet.
+        let finalAudioResult = { status: 'Not Checked', issue: 'Skipped', confidence: 0 };
+        if (audioFreq && audioAmp) {
+            try {
+                const { execSync } = require('child_process');
+                const fs = require('fs');
+                const tempPy = path.join(__dirname, '..', 'temp_audio_ml.py');
+                const scriptContent = `
+import sys
+import traceback
+try:
+    from ml import detect_pest, plants
+    cap_crop = "${crop}".capitalize()
+    if cap_crop not in set(plants):
+        print("___RESULT___:Model uncalibrated for crop")
+    else:
+        result = detect_pest(cap_crop, int(${audioFreq}), float(${audioAmp}))
+        print("___RESULT___:" + result)
+except Exception as e:
+    print("___ERROR___:" + str(e))
+`;
+                fs.writeFileSync(tempPy, scriptContent);
+                const stdout = execSync('python temp_audio_ml.py', { cwd: path.join(__dirname, '..'), encoding: 'utf-8' });
+                if (fs.existsSync(tempPy)) fs.unlinkSync(tempPy);
+
+                const match = stdout.match(/___RESULT___:(.*)/);
+                if (match) {
+                    const pest = match[1].trim();
+                    let status = 'Warning', confidence = 0.85;
+                    if (pest === 'Healthy' || pest === 'Model uncalibrated for crop') {
+                        status = 'Normal';
+                        confidence = 0.95;
+                    } else if (pest.toLowerCase().includes('borer') || pest.toLowerCase().includes('rot') || pest.toLowerCase().includes('blight') || pest.toLowerCase().includes('maggot') || pest.toLowerCase().includes('worm')) {
+                        status = 'Critical';
+                        confidence = 0.90;
+                    } else {
+                        status = 'Alert';
+                    }
+                    finalAudioResult = { status, issue: pest, confidence };
+                }
+            } catch (err) {
+                console.error("Audio ML failed:", err);
+                finalAudioResult = { status: 'Error', issue: 'Audio ML Failed', confidence: 0 };
+            }
+        }
+
         const finalResult = {
             crop,
             location: { lat, lon },
             climateResult: suitability,
             imageResult: imageResult || { status: 'Not Checked', issue: 'Skipped', confidence: 0 },
-            audioResult: audioResult || { status: 'Not Checked', issue: 'Skipped', confidence: 0 },
+            audioResult: finalAudioResult,
             advisory,
             timestamp: new Date().toISOString(),
         };
@@ -81,6 +126,18 @@ app.post('/api/diagnose', async (req, res) => {
             message: 'Check your internet connection or try again.'
         });
     }
+});
+
+// ─────────────────────────────────────────────
+// ROUTE 1.5 – Health Check
+// GET /api/health
+// ─────────────────────────────────────────────
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        firebase: firebaseReady ? 'connected' : 'not_configured',
+        mode: firebaseReady ? 'live' : 'mock'
+    });
 });
 
 // ─────────────────────────────────────────────
@@ -180,7 +237,7 @@ app.get('{*path}', (req, res) => {
 
 // ─────────────────────────────────────────────
 app.listen(PORT, () => {
-    console.log(`🚀  Server running on http://localhost:${PORT}`);
-    console.log(`🌿  Frontend:  http://localhost:${PORT}`);
-    console.log(`📡  API:       http://localhost:${PORT}/api/stats`);
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`🌿 Frontend: http://localhost:${PORT}`);
+    console.log(`📡 API: http://localhost:${PORT}/api/stats`);
 });

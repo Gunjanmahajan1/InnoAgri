@@ -293,15 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 'warning': { status: 'Warning', issue: 'Nutrient Deficiency', confidence: 0.84 },
                 'blight': { status: 'Critical', issue: 'Late Blight', confidence: 0.89 },
             };
-            const audMap = {
-                'not_check': { status: 'Not Checked', issue: 'Skipped', confidence: 0 },
-                'none': { status: 'Normal', issue: 'Baseline', confidence: 0.93 },
-                'locusts': { status: 'Warning', issue: 'Locust Frequency', confidence: 0.87 },
-                'aphids': { status: 'Alert', issue: 'Aphid Chewing Detected', confidence: 0.82 },
-            };
-
             const imageResult = imgMap[document.getElementById('sim-image').value];
-            const audioResult = audMap[document.getElementById('sim-audio').value];
+            const audioFreq = document.getElementById('audio-freq').value;
+            const audioAmp = document.getElementById('audio-amp').value;
 
             // UI State
             loader.classList.remove('hidden');
@@ -313,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(`${API}/diagnose`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ crop, lat: userCoords.lat, lon: userCoords.lon, imageResult, audioResult }),
+                    body: JSON.stringify({ crop, lat: userCoords.lat, lon: userCoords.lon, imageResult, audioFreq, audioAmp }),
                 });
 
                 if (!res.ok) throw new Error(`Server ${res.status}`);
@@ -378,8 +372,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Module Tags
         setTag('climate-tag', d.climateResult.category);
-        setTag('image-tag', d.imageResult.status);
-        setTag('audio-tag', d.audioResult.status);
+        setTag('image-tag', d.imageResult.status, d.imageResult.issue);
+        setTag('audio-tag', d.audioResult.status, d.audioResult.issue);
 
         // Advisory
         document.getElementById('advisory-text').textContent = d.advisory;
@@ -387,9 +381,13 @@ document.addEventListener('DOMContentLoaded', () => {
         card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function setTag(id, status) {
+    function setTag(id, status, issue = null) {
         const el = document.getElementById(id);
-        el.textContent = status;
+        let displayText = status;
+        if (issue && issue !== 'None' && issue !== 'Skipped' && issue !== 'Baseline') {
+            displayText = `${status}: ${issue}`;
+        }
+        el.textContent = displayText;
         el.className = 'status-tag';
         if (['Ideal', 'Healthy', 'Normal', 'No Pests Detected'].includes(status)) el.classList.add('ideal');
         else if (status === 'Not Checked' || status === 'Skipped') el.classList.add('neutral');
